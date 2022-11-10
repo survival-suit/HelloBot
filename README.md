@@ -1,2 +1,2 @@
-# HelloBot
-This pet project for learning python is called HelloBot
+# **HelloBot**
+This is *pet-project* for python learning  is called HelloBot.
