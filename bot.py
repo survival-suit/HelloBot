@@ -66,7 +66,7 @@ async def echo(message: types.Message):
 
 def bot_start():
     try:
-        Statistics.get_stat()
+        Statistics.load_stat()
         executor.start_polling(dp, skip_updates=True)
     except Unauthorized:
         logging.error('Invalid Token!')
