@@ -4,8 +4,10 @@ import os
 import sys
 
 from aiogram import Bot, Dispatcher, executor, types
+from aiogram.types import InputFile
 from aiogram.utils.exceptions import Unauthorized
 from statistics import Statistics
+from analitycs import Analitycs
 from user import User
 
 
@@ -40,28 +42,46 @@ def get_current_date():
 
 
 dp = get_bot_dispatcher()
-
+# TODO отправлять одну и ту же статистику в гугл и в локальную
 
 @dp.message_handler(commands=['start'])
 async def process_start_command(message: types.Message):
     await message.reply('Привет!\nНапиши мне сообщение!')
+    Analitycs.send_analytics(user_id=message.from_user.id, lang_code=message.from_user.language_code,
+                             action_name=message.get_command().replace('/', ''))
 
 
 @dp.message_handler(commands=['stat'])
 async def process_stat_command(message: types.Message):
-    for user in Statistics.statistics_list:
-        await message.reply(f'Пользователь: {user.user_id} Кол-во запросов: {user.user_req}')
+    await message.reply(Statistics.get_stat_message(), parse_mode="html")
+    Analitycs.send_analytics(user_id=message.from_user.id, lang_code=message.from_user.language_code,
+                             action_name=message.get_command().replace('/', ''))
 
 
 @dp.message_handler(commands=['help'])
 async def process_help_command(message: types.Message):
     await message.reply('Напиши мне что-нибудь!\nЯ верну текст сообщения с временем его отправки!')
+    Analitycs.send_analytics(user_id=message.from_user.id, lang_code=message.from_user.language_code,
+                             action_name=message.get_command().replace('/', ''))
+
+
+@dp.message_handler(commands=['statpic'])
+async def process_statpic_command(message: types.Message):
+    file_stat_image = Statistics.get_stat_image(message.from_user.id)
+    photo = InputFile(file_stat_image)
+    caption = 'Статистика по сообщениям от пользователей'
+    await message.reply_photo(photo, caption=caption)
+    Statistics.del_stat_image(file_stat_image)
+    Analitycs.send_analytics(user_id=message.from_user.id, lang_code=message.from_user.language_code,
+                             action_name=message.get_command().replace('/', ''))
 
 
 @dp.message_handler()
 async def echo(message: types.Message):
-    Statistics.set_statistics(User(message.from_user.id))
+    Statistics.set_statistics(User(message.from_user.id, message.from_user.username))
     await message.answer(message.text + ' ' + get_current_time() + ' ' + get_current_date())
+    Analitycs.send_analytics(user_id=message.from_user.id, lang_code=message.from_user.language_code,
+                             action_name='message')
 
 
 def bot_start():
