@@ -6,6 +6,7 @@ import logging
 class Analitycs:
     TARGET_URL = 'https://www.google-analytics.com/mp/collect'
     SHARE_URL = os.environ['SHARE_URL']
+
     @staticmethod
     def send_analytics(user_id, lang_code, action_name):
         params = {
@@ -23,7 +24,7 @@ class Analitycs:
         }
 
         try:
-            r = requests.post(
+            requests.post(
                 f'{Analitycs.TARGET_URL}?measurement_id={os.environ["MEASUREMENT_ID"]}&api_secret={os.environ["API_SECRET"]}',
                 json=params)
         except requests.exceptions.RequestException as ex:
