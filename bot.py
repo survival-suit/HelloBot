@@ -11,6 +11,7 @@ from statistics import Statistics
 from analitycs import Analitycs
 from user import User
 from coffee import Coffee
+from database.dbservice import DBService
 
 
 def get_token():
@@ -58,6 +59,7 @@ dp = Dispatcher(bot, storage=MemoryStorage())
 
 def bot_start():
     try:
+        DBService.init_db()
         Statistics.load_stat()
         executor.start_polling(dp, skip_updates=True)
     except Unauthorized:
@@ -71,16 +73,16 @@ def bot_start():
 async def process_start_command(message: types.Message):
     await message.reply('Привет!\nНапиши мне сообщение!')
     user = User(message.from_user.id, message.from_user.username)
-    Statistics.set_statistics(user, message.get_command().replace('/', ''))
+    DBService.set_statistics(user, message.get_command().replace('/', ''))
     Analitycs.send_analytics(user_id=message.from_user.id, lang_code=message.from_user.language_code,
                              action_name=message.get_command().replace('/', ''))
 
 
 @dp.message_handler(commands=['stat'])
 async def process_stat_command(message: types.Message):
-    await message.reply(Statistics.get_stat_message(), parse_mode="html")
+    await message.reply(DBService.get_stat_message(), parse_mode="html")
     user = User(message.from_user.id, message.from_user.username)
-    Statistics.set_statistics(user, message.get_command().replace('/', ''))
+    DBService.set_statistics(user, message.get_command().replace('/', ''))
     Analitycs.send_analytics(user_id=message.from_user.id, lang_code=message.from_user.language_code,
                              action_name=message.get_command().replace('/', ''))
 
@@ -89,7 +91,7 @@ async def process_stat_command(message: types.Message):
 async def process_help_command(message: types.Message):
     await message.reply('Напиши мне что-нибудь!\nЯ верну текст сообщения с временем его отправки!')
     user = User(message.from_user.id, message.from_user.username)
-    Statistics.set_statistics(user, message.get_command().replace('/', ''))
+    DBService.set_statistics(user, message.get_command().replace('/', ''))
     Analitycs.send_analytics(user_id=message.from_user.id, lang_code=message.from_user.language_code,
                              action_name=message.get_command().replace('/', ''))
 
@@ -103,7 +105,7 @@ async def process_statpic_command(message: types.Message):
     caption = 'Статистика по сообщениям от пользователей'
     await message.reply_photo(photo, caption=caption)
     user = User(message.from_user.id, message.from_user.username)
-    Statistics.set_statistics(user, message.get_command().replace('/', ''))
+    DBService.set_statistics(user, message.get_command().replace('/', ''))
     Analitycs.send_analytics(user_id=message.from_user.id, lang_code=message.from_user.language_code,
                              action_name=message.get_command().replace('/', ''))
 
@@ -116,7 +118,7 @@ async def start_coffee(message: types.Message):
     keyboard = Coffee.get_start_coffee_kb()
     await message.answer('Хочешь выпить кофе?', reply_markup=keyboard)
     user = User(message.from_user.id, message.from_user.username)
-    Statistics.set_statistics(user, message.get_command().replace('/', ''))
+    DBService.set_statistics(user, message.get_command().replace('/', ''))
     Analitycs.send_analytics(user_id=message.from_user.id, lang_code=message.from_user.language_code,
                              action_name=message.get_command().replace('/', ''))
 
@@ -158,6 +160,6 @@ async def answer_coffee_owner(call: types.CallbackQuery, callback_data: dict):
 async def echo(message: types.Message):
     await message.answer(message.text + ' ' + get_current_time() + ' ' + get_current_date())
     user = User(message.from_user.id, message.from_user.username)
-    Statistics.set_statistics(user, 'message')
+    DBService.set_statistics(user, 'message')
     Analitycs.send_analytics(user_id=message.from_user.id, lang_code=message.from_user.language_code,
                              action_name='message')

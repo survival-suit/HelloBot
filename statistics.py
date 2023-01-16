@@ -7,6 +7,7 @@ from io import BytesIO
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 
+
 from user import User
 from analitycs import Analitycs
 from aiogram.utils.markdown import hlink

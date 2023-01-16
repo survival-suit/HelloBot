@@ -13,6 +13,9 @@ class User:
             else:
                 self.user_req[action_name] = 1
 
+    def action_add(self, action_name, action_count):
+        self.user_req[action_name] = action_count
+
     def get_action_value(self, action_name):
         action_value = 0
         if action_name == 'all':
