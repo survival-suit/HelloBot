@@ -1,19 +1,18 @@
 import logging
-import random
 import os
+import random
 import database
 import datetime
-
-from io import BytesIO
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
-from sqlalchemy.orm import Session
-from sqlalchemy import create_engine, select, func
-from database import StatisticsRec, UserRec
-from analitycs import Analitycs
-from aiogram.utils.markdown import hlink
 
+from aiogram.utils.markdown import hlink
+from sqlalchemy.orm import Session, lazyload
+from sqlalchemy import create_engine, select
+from analitycs import Analitycs
+from database import StatisticsRec, UserRec
 from user import User
+from io import BytesIO
 
 
 class DBService:
@@ -24,38 +23,34 @@ class DBService:
     def init_db():
         database.Base.metadata.create_all(DBService.engine)
 
-    """Загрузка статистики из файла"""
+    """Загрузка статистики из базы в список User"""
 
     @staticmethod
     def get_statistics():
-        statistics_list = []
         with Session(DBService.engine) as session:
-            statement = select(
-                StatisticsRec.command,
-                StatisticsRec.user_id,
-                UserRec.user_name,
-                func.count(StatisticsRec.command).label('total'))\
-                .join(UserRec, UserRec.user_id == StatisticsRec.user_id)\
-                .group_by(StatisticsRec.user_id, StatisticsRec.command)
-            load_stat_query = session.execute(statement).all()
-
-        for query in load_stat_query:
-            if not statistics_list:
-                user = User(query[1], query[2])
-                user.action_add(query[0], query[3])
+            # statistics_dict = {}
+            statistics_list = []
+            load_stat_query = session.query(UserRec).options(lazyload(UserRec.statistics)).all()
+            for query in load_stat_query:
+                user = User(query.user_id, query.user_name, DBService.get_command_dict(query.statistics))
                 statistics_list.append(user)
-            else:
-                for stat in statistics_list:
-                    if stat.user_id == query[1]:
-                        stat.user_req[query[0]] = query[3]
-                    else:
-                        user = User(query[1], query[2])
-                        user.action_add(query[0], query[3])
-                        statistics_list.append(user)
+                # statistics_dict[query.user_id] = {'user_name': f'{query.user_name}', 'commands': DBService.get_command_dict(query.statistics)}
         return statistics_list
 
+    """Получение словаря команд из списка команд"""
 
-    """Формирование статистики для сообщения пользователю"""
+    @staticmethod
+    def get_command_dict(list_command):
+        command_dict = {}
+        for stat in list_command:
+            if not command_dict:
+                command_dict[stat.command] = 1
+            else:
+                if stat.command in command_dict:
+                    command_dict[stat.command] += 1
+                else:
+                    command_dict[stat.command] = 1
+        return command_dict
 
     @staticmethod
     def get_stat_message():
@@ -65,6 +60,38 @@ class DBService:
             message_text += f'Пользователь: {user.user_id} Имя: {user.user_name} Общее кол-во запросов: {user.get_action_value("all")} \n'
         message_text += f'\n\nПдробнее в {text_link}'
         return message_text
+
+    '''Генерация и получение изображения статистики пользователей по кол-ву сообщений'''
+
+    @staticmethod
+    def get_stat_image():
+        all_colors = [k for k, v in mcolors.cnames.items()]
+        all_colors.remove('black')
+        all_colors.remove('white')
+        user_name_list = []
+        user_req_list = []
+        random_color_list = []
+        random_color = random.choice(all_colors)
+        for user in DBService.get_statistics():
+            user_name_list.append(user.__dict__['user_name'])
+            user_req_list.append(user.get_action_value('all'))
+            if not random_color_list:
+                random_color_list.append(random_color)
+            else:
+                while random_color_list[-1] == random_color:
+                    random_color = random.choice(all_colors)
+                random_color_list.append(random_color)
+        fig, ax = plt.subplots()
+        fig.set_facecolor('floralwhite')
+        ax.bar(user_name_list, user_req_list, color=random_color_list, edgecolor='darkgrey')
+        ax.set_ylabel('Количество сообщений')
+        ax.set_title('Статистика по сообщениям от пользователей')
+        buf = BytesIO()
+        plt.savefig(buf, format='png')
+        buf.seek(0)
+        plt.close(fig)
+        return buf
+        buf.close()
 
     '''Добавление или апдейт статистики(в базе и статической переменной)'''
 

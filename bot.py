@@ -101,7 +101,7 @@ async def process_help_command(message: types.Message):
 
 @dp.message_handler(commands=['statpic'])
 async def process_statpic_command(message: types.Message):
-    photo = InputFile(Statistics.get_stat_image())
+    photo = InputFile(DBService.get_stat_image())
     caption = 'Статистика по сообщениям от пользователей'
     await message.reply_photo(photo, caption=caption)
     user = User(message.from_user.id, message.from_user.username)
