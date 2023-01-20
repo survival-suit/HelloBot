@@ -11,6 +11,7 @@ class UserRec(Base):
     user_id = Column(Integer, primary_key=True, nullable=False)
     user_name = Column(String)
     statistics = relationship('StatisticsRec', cascade="all,delete", backref="statistics", lazy="joined")
+    coffee = relationship('CoffeeRec', cascade="all,delete", backref="statistics", lazy="joined")
 
     def __init__(self, user_id, user_name):
         self.user_id = user_id

@@ -10,7 +10,7 @@ from aiogram.utils.markdown import hlink
 from sqlalchemy.orm import Session, lazyload
 from sqlalchemy import create_engine, select
 from analitycs import Analitycs
-from database import StatisticsRec, UserRec
+from database import StatisticsRec, UserRec, CoffeeRec
 from user import User
 from io import BytesIO
 
@@ -93,7 +93,7 @@ class DBService:
         return buf
         buf.close()
 
-    '''Добавление или апдейт статистики(в базе и статической переменной)'''
+    '''Добавление или апдейт статистики в базе '''
 
     @staticmethod
     def set_statistics(user_object, action_name):
@@ -109,6 +109,26 @@ class DBService:
                 statistics_rec = StatisticsRec(time=datetime.datetime.now(), command=action_name,
                                                user_id=user_object.user_id)
                 session.add(statistics_rec)
+                session.commit()
+            except Exception as ex:
+                logging.error(ex)
+
+    '''Запись о встрече на кофе в таблицу'''
+
+    @staticmethod
+    def set_coffee(user_object, coffee_day):
+        with Session(DBService.engine) as session:
+            try:
+                statement = select(UserRec).filter_by(user_id=user_object.user_id)
+                result = session.execute(statement).scalars().first()
+                if result is None:
+                    user_rec = UserRec(user_id=user_object.user_id, user_name=user_object.user_name)
+                    session.add(user_rec)
+                    session.commit()
+
+                coffee_rec = CoffeeRec(time=datetime.datetime.now(), coffee_day=coffee_day,
+                                       user_id=user_object.user_id)
+                session.add(coffee_rec)
                 session.commit()
             except Exception as ex:
                 logging.error(ex)
