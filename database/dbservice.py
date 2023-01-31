@@ -43,13 +43,10 @@ class DBService:
     def get_command_dict(list_command):
         command_dict = {}
         for stat in list_command:
-            if not command_dict:
-                command_dict[stat.command] = 1
+            if stat.command in command_dict:
+                command_dict[stat.command] += 1
             else:
-                if stat.command in command_dict:
-                    command_dict[stat.command] += 1
-                else:
-                    command_dict[stat.command] = 1
+                command_dict[stat.command] = 1
         return command_dict
 
     @staticmethod
@@ -113,22 +110,120 @@ class DBService:
             except Exception as ex:
                 logging.error(ex)
 
-    '''Запись о встрече на кофе в таблицу'''
+    '''Создание записи о встрече на кофе в таблицу. Статус 0 - создано не подтверждено, 1 подтвержденная запись, -1 -отказано'''
 
     @staticmethod
     def set_coffee(user_object, coffee_day):
+        meeting_day = None
+        status = None
+        today = datetime.date.today()
+        if coffee_day == 'coffee_today':
+            meeting_day = today
+            if DBService.day_is_free(meeting_day):
+                status = 0
+            else:
+                status = -1
+        elif coffee_day == 'coffee_tomorrow':
+            meeting_day = today + datetime.timedelta(days=1)
+            if DBService.day_is_free(meeting_day):
+                status = 0
+            else:
+                status = -1
+        elif coffee_day == 'coffee_weekend':
+            if DBService.day_is_free(DBService.next_weekday(today, 5)):
+                meeting_day = DBService.next_weekday(today, 5)
+                status = 0
+            elif DBService.day_is_free(DBService.next_weekday(today, 6)):
+                meeting_day = DBService.next_weekday(today, 6)
+                status = 0
+            else:
+                meeting_day = DBService.next_weekday(today, 6)
+                status = -1
+
         with Session(DBService.engine) as session:
             try:
-                statement = select(UserRec).filter_by(user_id=user_object.user_id)
-                result = session.execute(statement).scalars().first()
-                if result is None:
-                    user_rec = UserRec(user_id=user_object.user_id, user_name=user_object.user_name)
-                    session.add(user_rec)
-                    session.commit()
-
-                coffee_rec = CoffeeRec(time=datetime.datetime.now(), coffee_day=coffee_day,
-                                       user_id=user_object.user_id)
+                coffee_rec = CoffeeRec(date_time=datetime.datetime.now(), coffee_day=meeting_day,
+                                       user_from_id=user_object.user_id, status=status)
+                print(coffee_rec.id)
                 session.add(coffee_rec)
                 session.commit()
+                session.refresh(coffee_rec)
+            except Exception as ex:
+                logging.error(ex)
+
+        return coffee_rec
+
+    @staticmethod
+    def update_status(row_id, status):
+        with Session(DBService.engine) as session:
+            try:
+                coffee_rec = session.execute(select(CoffeeRec).filter_by(id=row_id)).scalar_one()
+                coffee_rec.status = status
+                session.commit()
+            except Exception as ex:
+                logging.error(ex)
+
+    '''Выбрать данные по предложению'''
+    @staticmethod
+    def get_offer_to_coffee(row_id):
+        with Session(DBService.engine) as session:
+            try:
+                statement = select(CoffeeRec).filter_by(id=row_id)
+                result = session.execute(statement).scalars().first()
+                if result is None:
+                    return None
+
+                return result
+            except Exception as ex:
+                logging.error(ex)
+
+    @staticmethod
+    def get_user_by_id(user_id):
+        with Session(DBService.engine) as session:
+            try:
+                statement = select(UserRec).filter_by(user_id=user_id)
+                result = session.execute(statement).scalars().first()
+                if result is None:
+                    return None
+
+                return result.user_name
+            except Exception as ex:
+                logging.error(ex)
+
+    '''Поиск ближайшего дня недели'''
+    @staticmethod
+    def next_weekday(d, weekday):
+        days_ahead = weekday - d.weekday()
+        if days_ahead <= 0:
+            days_ahead += 7
+        return d + datetime.timedelta(days_ahead)
+
+    '''Проверка свободна ли дата для кофе'''
+    @staticmethod
+    def day_is_free(coffee_day):
+        with Session(DBService.engine) as session:
+            try:
+                statement = select(CoffeeRec).filter_by(coffee_day=coffee_day).filter(CoffeeRec.status.in_([0, 1]))
+                result = session.execute(statement).scalars().first()
+                if result is None:
+                    return True
+                else:
+                    return False
+            except Exception as ex:
+                logging.error(ex)
+
+    @staticmethod
+    def check_coffee_today(user_id):
+        with Session(DBService.engine) as session:
+            try:
+                if user_id == int(os.environ['OWNER_USER_ID']):
+                    statement = select(CoffeeRec).filter_by(coffee_day=datetime.date.today()).filter(CoffeeRec.status.in_([1]))
+                    result = session.execute(statement).scalars().first()
+                else:
+                    statement = select(CoffeeRec).filter_by(coffee_day=datetime.date.today())\
+                        .filter(CoffeeRec.status.in_([1]) and CoffeeRec.user_from_id.in_(user_id))
+                    result = session.execute(statement).scalars().first()
+                return result
+
             except Exception as ex:
                 logging.error(ex)

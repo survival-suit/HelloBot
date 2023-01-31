@@ -4,13 +4,12 @@ import os
 import sys
 
 from aiogram import Bot, Dispatcher, executor, types
-from aiogram.dispatcher import FSMContext
 from aiogram.types import InputFile
 from aiogram.utils.exceptions import Unauthorized
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
+from aiogram.dispatcher import filters
 from statistics import Statistics
 from analitycs import Analitycs
-from coffee_states import CoffeeStates
 from user import User
 from coffee import Coffee
 from database.dbservice import DBService
@@ -117,38 +116,86 @@ async def start_coffee(message: types.Message):
     set_statistics(message)
 
 
+@dp.message_handler(commands=['coffee_today'])
+async def coffee_today(message: types.Message):
+    user_id = message.from_user.id
+    result = DBService.check_coffee_today(user_id)
+    if result is None:
+        await message.reply('На сегодня у вас не запланирован кофе.')
+    else:
+        pretty_coffee_day = result.coffee_day.strftime("%d.%m.%Y")
+        info_message = f'На сегодня {pretty_coffee_day} у вас запланирован кофе'
+        if user_id == int(os.environ['OWNER_USER_ID']):
+            user_name = '@' + DBService.get_user_by_id(result.user_from_id)
+            await message.reply(info_message + f' c {user_name}')
+        else:
+            await message.reply(info_message + '.')
+    set_statistics(message)
+
+
 @dp.callback_query_handler(text="drink_coffee")
 async def when_coffee(call: types.CallbackQuery):
     keyboard = Coffee.get_when_coffee_kb()
     await call.message.answer(f'Когда удобно?', reply_markup=keyboard)
-    # await call.answer()
 
 
 @dp.callback_query_handler(Coffee.cd_when.filter(when_coffee=['coffee_today', 'coffee_tomorrow', 'coffee_weekend']))
-async def send_req_coffee_owner(call: types.CallbackQuery, callback_data: dict, state: FSMContext):
-    async with state.proxy() as data:
-        data['user_id'] = call.from_user.id
-        data['user_name'] = call.from_user.username
-    user_name = call.from_user.username
-    user_name = '@' + user_name
-    keyboard = Coffee.get_answer_coffee_kb()
-    await call.answer(text=f'Вы согласились выпить кофе {Coffee.dict_when[callback_data["when_coffee"]]}!',
-                      show_alert=True)
-    await bot.send_message(os.environ['OWNER_USER_ID'],
-                           f'{user_name} хочет выпить кофе {Coffee.dict_when[callback_data["when_coffee"]]}! Выпить?',
-                           reply_markup=keyboard)
+async def send_req_coffee_owner(call: types.CallbackQuery, callback_data: dict):
+    user = User(call.from_user.id, call.from_user.username)
+    coffee_rec = DBService.set_coffee(user, callback_data["when_coffee"])
+    pretty_coffee_day = coffee_rec.coffee_day.strftime("%d.%m.%Y")
+    if coffee_rec.status == -1:
+        await call.answer(text=f'К сожалению, {Coffee.dict_when[callback_data["when_coffee"]]} {pretty_coffee_day} выпить кофе'
+                               f' не получится, график переполнен. Попробуйте выбрать другой день: /coffee',
+                          show_alert=True)
+    else:
+        message = f'Вы согласились выпить кофе {Coffee.dict_when[callback_data["when_coffee"]]} {pretty_coffee_day}!Ждите ответа.'
+        await call.answer(text=message, show_alert=True)
+        await bot.send_message(call.from_user.id, 'Напоминаение: '+message)
+        # sending message to bot for admin
+        message = f"Новый запрос на кофе от @{call.from_user.username}"
+        message += f"\n\n/coffee_accept_{coffee_rec.id}"
+        await bot.send_message(os.environ['OWNER_USER_ID'], message)
 
 
-@dp.callback_query_handler(Coffee.cd_answer.filter(answer_coffee=['coffee_yes', 'coffee_no']))
-async def answer_coffee_owner(call: types.CallbackQuery, callback_data: dict, state: FSMContext):
-    async with state.proxy() as data:
-        user_id = data['user_id']
-        user_name = '@' + data['user_name']
-    await call.answer(text=f'Вы ответили {user_id} {Coffee.dict_answer[callback_data["answer_coffee"]]}!',
-                      show_alert=True)
-    await bot.send_message(user_name,
-                           f'На предложение выпить кофе ответили {Coffee.dict_answer[callback_data["answer_coffee"]]}.')
-    await state.finish()
+@dp.message_handler(filters.RegexpCommandsFilter(regexp_commands=['coffee_accept_([0-9]*)']))
+async def coffee_accept(message: types.Message):
+    row_id = message.text.replace("/coffee_accept_", "")
+    coffee_rec = DBService.get_offer_to_coffee(row_id)
+    user_name = '@' + DBService.get_user_by_id(coffee_rec.user_from_id)
+    buttons = [
+        types.InlineKeyboardButton(text='Да', callback_data='coffee_y_' + row_id),
+        types.InlineKeyboardButton(text='Нет', callback_data='coffee_n_' + row_id)
+    ]
+    kb = types.InlineKeyboardMarkup(row_width=2)
+    kb.add(*buttons)
+
+    await message.answer(f'Пользователь {user_name} хочет выпить c вами кофе {coffee_rec.coffee_day.strftime("%d.%m.%Y")}. '
+                         f'Этот день в графике свободен. Выпить кофе с пользователем?', reply_markup=kb)
+
+
+@dp.callback_query_handler(filters.Regexp(regexp='coffee_[yn]_([0-9]*)'))
+async def answer_coffee_owner(call: types.CallbackQuery):
+    message_text = call.data
+    row_id = message_text[9:]
+    answer = message_text.replace(row_id, "")
+    status = 1
+    answer_text = 'да'
+    if answer == 'coffee_n_':
+        status = -2
+        answer_text = 'нет'
+
+    coffee_rec = DBService.get_offer_to_coffee(row_id)
+    user_name = '@' + DBService.get_user_by_id(coffee_rec.user_from_id)
+    pretty_coffee_day = coffee_rec.coffee_day.strftime("%d.%m.%Y")
+    DBService.update_status(row_id, status)
+    admin_message = f'Вы ответили {answer_text} на предложение {user_name} выпить кофе в дату {pretty_coffee_day}!'
+    user_message = f'На предложение выпить кофе в дату {pretty_coffee_day} ответили: {answer_text}.'
+
+    await call.answer(text=admin_message, show_alert=True)
+    await bot.send_message(os.environ['OWNER_USER_ID'], admin_message)
+    await bot.send_message(coffee_rec.user_from_id, user_message)
+
 
 '''Отвечает пользователю его же сообщением только с датой и временем'''
 

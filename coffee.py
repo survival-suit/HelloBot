@@ -28,10 +28,10 @@ class Coffee:
         return kb
 
     @staticmethod
-    def get_answer_coffee_kb():
+    def get_answer_coffee_kb(row_id):
         buttons = [
-            types.InlineKeyboardButton(text='Да', callback_data=Coffee.cd_answer.new(answer_coffee='coffee_yes')),
-            types.InlineKeyboardButton(text='Нет', callback_data=Coffee.cd_answer.new(answer_coffee='coffee_no'))
+            types.InlineKeyboardButton(text='Да', callback_data=Coffee.cd_answer.new(answer_coffee='coffee_y_'+row_id)),
+            types.InlineKeyboardButton(text='Нет', callback_data=Coffee.cd_answer.new(answer_coffee='coffee_n_'+row_id))
         ]
         kb = types.InlineKeyboardMarkup(row_width=2)
         kb.add(*buttons)
