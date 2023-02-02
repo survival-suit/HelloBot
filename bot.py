@@ -8,7 +8,6 @@ from aiogram.types import InputFile
 from aiogram.utils.exceptions import Unauthorized
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from aiogram.dispatcher import filters
-from statistics import Statistics
 from analitycs import Analitycs
 from user import User
 from coffee import Coffee
@@ -68,7 +67,7 @@ dp = Dispatcher(bot, storage=MemoryStorage())
 def bot_start():
     try:
         DBService.init_db()
-        Statistics.load_stat()
+        # Statistics.load_stat()
         executor.start_polling(dp, skip_updates=True)
     except Unauthorized:
         logging.error('Invalid Token!')
