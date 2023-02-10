@@ -8,7 +8,6 @@ class StatisticsRec(Base):
     id = Column(Integer, primary_key=True, nullable=False)
     time = Column(DateTime)
     command = Column(String(50))
-    # user_id = Column(Integer)
     user_id = Column(Integer, ForeignKey('user.user_id'))
 
     def __init__(self, time, command, user_id):

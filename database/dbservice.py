@@ -28,13 +28,9 @@ class DBService:
     @staticmethod
     def get_statistics():
         with Session(DBService.engine) as session:
-            # statistics_dict = {}
-            statistics_list = []
             load_stat_query = session.query(UserRec).options(lazyload(UserRec.statistics)).all()
-            for query in load_stat_query:
-                user = User(query.user_id, query.user_name, DBService.get_command_dict(query.statistics))
-                statistics_list.append(user)
-                # statistics_dict[query.user_id] = {'user_name': f'{query.user_name}', 'commands': DBService.get_command_dict(query.statistics)}
+            statistics_list = list(map(lambda x: User(x.user_id, x.user_name, DBService.get_command_dict(x.statistics)),
+                                       load_stat_query))
         return statistics_list
 
     """Получение словаря команд из списка команд"""
@@ -51,11 +47,10 @@ class DBService:
 
     @staticmethod
     def get_stat_message():
-        text_link = hlink("Google Analitycs", Analitycs.SHARE_URL)
         message_text = ''
         for user in DBService.get_statistics():
-            message_text += f'Пользователь: {user.user_id} Имя: {user.user_name} Общее кол-во запросов: {user.get_action_value("all")} \n'
-        message_text += f'\n\nПдробнее в {text_link}'
+            message_text += f'Юзер: {user.user_id} Имя: {user.user_name} Запросов: {user.get_action_value("all")} \n'
+        message_text += f'\n\nПдробнее в {hlink("Google Analitycs", Analitycs.SHARE_URL)}'
         return message_text
 
     '''Генерация и получение изображения статистики пользователей по кол-ву сообщений'''

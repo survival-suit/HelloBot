@@ -67,7 +67,6 @@ dp = Dispatcher(bot, storage=MemoryStorage())
 def bot_start():
     try:
         DBService.init_db()
-        # Statistics.load_stat()
         executor.start_polling(dp, skip_updates=True)
     except Unauthorized:
         logging.error('Invalid Token!')
